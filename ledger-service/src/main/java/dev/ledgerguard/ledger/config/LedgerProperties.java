@@ -10,7 +10,16 @@ public record LedgerProperties(
         @DefaultValue Transfer transfer,
         @DefaultValue Idempotency idempotency,
         @DefaultValue Retry retry,
-        @DefaultValue Read read) {
+        @DefaultValue Read read,
+        @DefaultValue Outbox outbox) {
+
+    public record Outbox(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("ledger.events") String topic,
+            @DefaultValue("6") int partitions,
+            @DefaultValue("200") int batchSize,
+            @DefaultValue("PT15S") Duration sendTimeout,
+            @DefaultValue("P7D") Duration retention) {}
 
     public record Security(@DefaultValue("") String apiKeys) {}
 

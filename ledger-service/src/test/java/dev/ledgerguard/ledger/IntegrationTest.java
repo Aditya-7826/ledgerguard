@@ -27,7 +27,10 @@ import org.testcontainers.utility.DockerImageName;
         "ledger.security.api-keys=" + IntegrationTest.KEYS,
         "ledger.reconcile.interval=PT1H",
         "ledger.transfer.max-amount-minor=1000000000",
-        "spring.datasource.hikari.maximum-pool-size=30"
+        "spring.datasource.hikari.maximum-pool-size=30",
+        // Ledger-core tests don't need Kafka; OutboxTest runs its own context with a broker.
+        "ledger.outbox.enabled=false",
+        "spring.kafka.admin.auto-create=false"
 })
 @Import(IntegrationTest.Containers.class)
 public abstract class IntegrationTest {

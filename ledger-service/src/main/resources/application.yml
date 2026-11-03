@@ -17,6 +17,19 @@ spring:
       allow-coercion-of-scalars: false
     serialization:
       write-dates-as-timestamps: false
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 5
+        max.block.ms: 10000
+        request.timeout.ms: 10000
+        delivery.timeout.ms: 30000
 
 server:
   port: 8080
@@ -45,6 +58,15 @@ ledger:
     max-retries: 3
   reconcile:
     interval: ${LEDGER_RECONCILE_INTERVAL:PT5M}
+  outbox:
+    enabled: ${LEDGER_OUTBOX_ENABLED:true}
+    topic: ${LEDGER_OUTBOX_TOPIC:ledger.events}
+    partitions: 6
+    batch-size: 200
+    poll-interval: ${LEDGER_OUTBOX_POLL_INTERVAL:PT0.2S}
+    send-timeout: PT15S
+    retention: P7D
+    cleanup-interval: PT1H
   read:
     max-window: P30D
     max-limit: 100
