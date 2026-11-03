@@ -130,8 +130,17 @@ services:
       LEDGER_URL: http://ledger-service:8080
       # The ONLY holder of the ADMIN key: used solely by POST /cases/{id}/decision for FREEZE.
       LEDGER_ADMIN_API_KEY: ${LEDGER_ADMIN_API_KEY:?}
+      # READONLY key for the UI's account / transfer / money-flow views (GET only).
+      LEDGER_READONLY_API_KEY: ${LEDGER_READONLY_API_KEY:?}
     ports:
       - "${AGENT_API_PORT:-8090}:8090"
+
+  ui:
+    build: ./ui
+    depends_on:
+      - agent-api
+    ports:
+      - "${UI_PORT:-3000}:80"
 
 volumes:
   pgdata:

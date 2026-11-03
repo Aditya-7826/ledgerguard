@@ -72,9 +72,10 @@ class Settings(BaseSettings):
     # Tells the model that timestamps are compressed (simulation). 1 = real time.
     sim_time_scale: float = Field(default=1.0, gt=0)
 
-    # cases API → ledger admin (freeze). Only the API process is given the ADMIN key.
+    # cases API → ledger. ADMIN key: freeze after a human decision, nothing else. READONLY key: UI reads.
     ledger_url: str = "http://localhost:8080"
     ledger_admin_api_key: str = ""
+    ledger_readonly_api_key: str = ""
 
     def rules(self) -> RuleConfig:
         return RuleConfig(time_scale=self.detector_time_scale)

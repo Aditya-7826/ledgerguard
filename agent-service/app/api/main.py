@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.ledger_admin import HttpLedgerAdmin, LedgerAdmin, LedgerAdminError
+from app.api.ledger_read import HttpLedgerReader, LedgerReader, LedgerReadError, money_flow_graph
 from app.config import Settings
 from app.db import connect, migrate
 
@@ -35,7 +36,8 @@ def _iso(v):
     return v.isoformat() if v is not None else None
 
 
-def create_app(settings: Settings | None = None, admin: LedgerAdmin | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, admin: LedgerAdmin | None = None,
+               reader: LedgerReader | None = None) -> FastAPI:
     s = settings or Settings()
     db = s.agent_database_url
 
@@ -43,6 +45,7 @@ def create_app(settings: Settings | None = None, admin: LedgerAdmin | None = Non
     async def lifespan(app: FastAPI):
         migrate(db)
         app.state.admin = admin or HttpLedgerAdmin(s.ledger_url, s.ledger_admin_api_key)
+        app.state.reader = reader or HttpLedgerReader(s.ledger_url, s.ledger_readonly_api_key)
         yield
 
     app = FastAPI(title="LedgerGuard cases API", version="0.1.0", lifespan=lifespan)
@@ -57,9 +60,49 @@ def create_app(settings: Settings | None = None, admin: LedgerAdmin | None = Non
         return JSONResponse({"code": "validation_failed", "detail": "request validation failed", "errors": errors},
                             status_code=422)
 
+    @app.exception_handler(LedgerReadError)
+    async def _ledger_read_error(_: Request, e: LedgerReadError):
+        status = e.status if e.status in (400, 404, 422) else 502
+        return JSONResponse({"code": e.code, "detail": e.detail}, status_code=status)
+
     @app.get("/healthz")
     def healthz() -> dict:
         return {"status": "ok"}
+
+    # ---- read-through to the ledger (READONLY key) for the UI ------------------------------------------
+
+    @app.get("/accounts/{account_id}")
+    def account(account_id: UUID) -> dict[str, Any]:
+        r = app.state.reader
+        acct = r.get(f"/v1/accounts/{account_id}")
+        balance = r.get(f"/v1/accounts/{account_id}/balance")
+        transfers = r.get(f"/v1/accounts/{account_id}/transfers", {"limit": 25})
+        with connect(db) as c:
+            cases = c.execute("select id, status, risk_score, opened_at from cases where account_id = %s "
+                              "order by opened_at desc limit 10", (account_id,)).fetchall()
+        return {"account": acct, "balance_minor": balance["balance_minor"], "currency": balance["currency"],
+                "recent_transfers": transfers["items"], "has_more_transfers": transfers["next_cursor"] is not None,
+                "cases": [{"id": str(x[0]), "status": x[1], "risk_score": x[2], "opened_at": _iso(x[3])}
+                          for x in cases],
+                "as_of": balance["as_of"]}
+
+    @app.get("/transfers/{transfer_id}")
+    def transfer(transfer_id: UUID) -> dict[str, Any]:
+        return app.state.reader.get(f"/v1/transfers/{transfer_id}")
+
+    @app.get("/cases/{case_id}/graph")
+    def case_graph(case_id: UUID, hops: int = Query(2, ge=1, le=3)) -> dict[str, Any]:
+        with connect(db) as c:
+            row = c.execute("select account_id from cases where id = %s", (case_id,)).fetchone()
+            if row is None:
+                raise ApiError(404, "case_not_found", f"case {case_id} does not exist")
+            graph = money_flow_graph(app.state.reader, str(row[0]), hops=hops)
+            flagged = {str(x[0]) for x in c.execute(
+                "select account_id from cases where account_id = any(%s::uuid[]) and status = any(%s)",
+                ([n["id"] for n in graph["nodes"]], list(STATUSES[:4]))).fetchall()}
+        for n in graph["nodes"]:
+            n["has_open_case"] = n["id"] in flagged
+        return graph
 
     @app.get("/cases")
     def list_cases(status: str | None = None, min_risk: float | None = Query(None, ge=0, le=1),
