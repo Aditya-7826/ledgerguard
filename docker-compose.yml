@@ -84,6 +84,55 @@ services:
       # Must equal the simulator's time scale (see .env.example).
       DETECTOR_TIME_SCALE: ${SIM_TIME_SCALE:-3600}
 
+  mcp-server:
+    build: ./mcp-server
+    restart: on-failure
+    depends_on:
+      - ledger-service
+    environment:
+      LEDGER_URL: http://ledger-service:8080
+      # READONLY key only: this server cannot move or freeze money.
+      LEDGER_READONLY_API_KEY: ${LEDGER_READONLY_API_KEY:?}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8000"
+      MCP_ALLOWED_HOSTS: "mcp-server:*,localhost:*,127.0.0.1:*"
+
+  agent-worker:
+    build: ./agent-service
+    command: ["/app/.venv/bin/python", "-m", "app.agent.worker"]
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+    environment:
+      AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD}@postgres:5432/agent
+      MCP_URL: http://mcp-server:8000/mcp
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_INPUT_USD_PER_MTOK: ${LLM_INPUT_USD_PER_MTOK:-0}
+      LLM_OUTPUT_USD_PER_MTOK: ${LLM_OUTPUT_USD_PER_MTOK:-0}
+      AGENT_CONCURRENCY: ${AGENT_CONCURRENCY:-4}
+      SIM_TIME_SCALE: ${SIM_TIME_SCALE:-3600}
+      # No ledger key of any kind: the worker sees the ledger only through the read-only MCP server.
+
+  agent-api:
+    build: ./agent-service
+    command: ["/app/.venv/bin/uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8090"]
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD}@postgres:5432/agent
+      LEDGER_URL: http://ledger-service:8080
+      # The ONLY holder of the ADMIN key: used solely by POST /cases/{id}/decision for FREEZE.
+      LEDGER_ADMIN_API_KEY: ${LEDGER_ADMIN_API_KEY:?}
+    ports:
+      - "${AGENT_API_PORT:-8090}:8090"
+
 volumes:
   pgdata:
   kafkadata:

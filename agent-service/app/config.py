@@ -44,10 +44,37 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     agent_database_url: str = "postgresql://agent:agent@localhost:5432/agent"
+
+    # detector
     kafka_bootstrap_servers: str = "localhost:9094"
     ledger_events_topic: str = "ledger.events"
     detector_group_id: str = "detector"
     detector_time_scale: float = Field(default=1.0, gt=0)
+
+    # LLM. The model is never hardcoded: LLM_MODEL must be set for real providers.
+    llm_provider: str = "anthropic"
+    llm_model: str = ""
+    llm_timeout_s: float = Field(default=60.0, gt=0)
+    llm_max_retries: int = Field(default=2, ge=0)
+    llm_retry_backoff_s: float = Field(default=1.0, ge=0)
+    # Cost estimate inputs (USD per million tokens). Leave 0 if unknown: cost is then reported as 0.
+    llm_input_usd_per_mtok: float = Field(default=0.0, ge=0)
+    llm_output_usd_per_mtok: float = Field(default=0.0, ge=0)
+
+    # agent
+    mcp_url: str = "http://localhost:8000/mcp"
+    agent_max_tool_calls: int = Field(default=25, ge=1)
+    agent_investigate_timeout_s: float = Field(default=120.0, gt=0)
+    agent_auto_clear_max_risk: float = Field(default=0.2, ge=0, le=1)
+    agent_auto_clear_min_confidence: float = Field(default=0.8, ge=0, le=1)
+    agent_concurrency: int = Field(default=4, ge=1)
+    agent_settle_seconds: float = Field(default=10.0, ge=0)
+    # Tells the model that timestamps are compressed (simulation). 1 = real time.
+    sim_time_scale: float = Field(default=1.0, gt=0)
+
+    # cases API → ledger admin (freeze). Only the API process is given the ADMIN key.
+    ledger_url: str = "http://localhost:8080"
+    ledger_admin_api_key: str = ""
 
     def rules(self) -> RuleConfig:
         return RuleConfig(time_scale=self.detector_time_scale)

@@ -11,7 +11,7 @@ endif
 LEDGER_URL ?= http://localhost:$(or $(LEDGER_PORT),8080)
 SEED ?= 42
 
-.PHONY: help up down logs ps test test-ledger test-agent test-sim simulate reconcile
+.PHONY: help up down logs ps test test-ledger test-agent test-mcp test-sim simulate reconcile
 
 help:
 	@echo "make up          - build and start the stack (docker compose)"
@@ -33,13 +33,16 @@ logs:
 ps:
 	docker compose ps
 
-test: test-ledger test-agent test-sim
+test: test-ledger test-agent test-mcp test-sim
 
 test-ledger:
 	cd ledger-service && $(MVNW) -B test
 
 test-agent:
 	cd agent-service && uv run pytest -q
+
+test-mcp:
+	cd mcp-server && uv run pytest -q
 
 test-sim:
 	cd simulator && uv run pytest -q

@@ -7,11 +7,18 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "aiokafka>=0.12",
     "pydantic-settings>=2.6",
+    "langgraph>=0.4",
+    "langchain-anthropic>=0.3",
+    "langchain-mcp-adapters>=0.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "testcontainers[postgres]>=4.9",
 ]
 
@@ -21,4 +28,6 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra"
