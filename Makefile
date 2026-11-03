@@ -1,5 +1,6 @@
 # LedgerGuard. Recipes avoid shell-specific syntax so they work from cmd, PowerShell and bash.
 -include .env
+export
 
 ifeq ($(OS),Windows_NT)
 MVNW := .\mvnw.cmd
@@ -8,15 +9,16 @@ MVNW := ./mvnw
 endif
 
 LEDGER_URL ?= http://localhost:$(or $(LEDGER_PORT),8080)
+SEED ?= 42
 
-.PHONY: help up down logs ps test test-ledger reconcile
+.PHONY: help up down logs ps test test-ledger test-agent test-sim simulate reconcile
 
 help:
 	@echo "make up          - build and start the stack (docker compose)"
 	@echo "make down        - stop the stack"
 	@echo "make logs        - follow service logs"
+	@echo "make simulate    - drive the ledger with baseline traffic + fraud scenarios (writes eval/labels.jsonl)"
 	@echo "make test        - run every service's tests"
-	@echo "make test-ledger - run ledger-service tests (Testcontainers; needs Docker)"
 	@echo "make reconcile   - call the ledger reconcile endpoint"
 
 up:
@@ -31,10 +33,19 @@ logs:
 ps:
 	docker compose ps
 
-test: test-ledger
+test: test-ledger test-agent test-sim
 
 test-ledger:
 	cd ledger-service && $(MVNW) -B test
+
+test-agent:
+	cd agent-service && uv run pytest -q
+
+test-sim:
+	cd simulator && uv run pytest -q
+
+simulate:
+	cd simulator && uv run python -m simulator --seed $(SEED) --ledger-url $(LEDGER_URL)
 
 reconcile:
 	curl -s -H "X-API-Key: $(LEDGER_ADMIN_API_KEY)" $(LEDGER_URL)/v1/admin/reconcile

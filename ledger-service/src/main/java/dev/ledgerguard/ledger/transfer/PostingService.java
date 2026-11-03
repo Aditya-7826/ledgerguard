@@ -137,6 +137,7 @@ public class PostingService {
         e.put("transfer_type", d.type().name());
         e.put("memo", d.memo());
         e.put("account_created_at", account.createdAt());
+        e.put("account_is_system", account.system());
         e.put("counterparty_created_at", counterparty.createdAt());
         e.put("counterparty_is_system", counterparty.system());
         e.put("posted_at", createdAt);

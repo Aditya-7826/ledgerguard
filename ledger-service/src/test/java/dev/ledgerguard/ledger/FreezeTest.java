@@ -39,19 +39,25 @@ class FreezeTest extends IntegrationTest {
             }));
         }
 
-        Thread.sleep(500);
-        Resp frozen = freeze(a, "race-" + UUID.randomUUID());
-        freezeReturnedNanos.set(System.nanoTime());
-        assertThat(frozen.status()).as(frozen.body()).isEqualTo(200);
+        long debitsAtFreeze;
+        long balanceAtFreeze;
+        try {
+            Thread.sleep(500);
+            Resp frozen = freeze(a, "race-" + UUID.randomUUID());
+            freezeReturnedNanos.set(System.nanoTime());
+            assertThat(frozen.status()).as(frozen.body()).isEqualTo(200);
 
-        long debitsAtFreeze = debitCount(a);
-        long balanceAtFreeze = balance(a);
-        Thread.sleep(500);
-        stop.set(true);
-        for (Future<?> f : futures) {
-            f.get(1, TimeUnit.MINUTES);
+            debitsAtFreeze = debitCount(a);
+            balanceAtFreeze = balance(a);
+            Thread.sleep(500);
+        } finally {
+            // Always stop the workers, even if the freeze call fails, so they can't outlive the test.
+            stop.set(true);
+            for (Future<?> f : futures) {
+                f.get(1, TimeUnit.MINUTES);
+            }
+            pool.shutdown();
         }
-        pool.shutdown();
 
         assertThat(debitCount(a)).isEqualTo(debitsAtFreeze);
         assertThat(balance(a)).isEqualTo(balanceAtFreeze);

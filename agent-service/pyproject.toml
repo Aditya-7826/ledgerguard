@@ -1,0 +1,24 @@
+[project]
+name = "agent-service"
+version = "0.1.0"
+description = "LedgerGuard detector, investigation agent, cases API and approvals"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "aiokafka>=0.12",
+    "pydantic-settings>=2.6",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "testcontainers[postgres]>=4.9",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

@@ -16,6 +16,9 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
+# Generated per simulator run (account ids differ every run)
+eval/labels.jsonl
+
 # Node
 node_modules/
 dist/

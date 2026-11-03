@@ -68,6 +68,22 @@ services:
     ports:
       - "${LEDGER_PORT:-8080}:8080"
 
+  detector:
+    build: ./agent-service
+    command: ["/app/.venv/bin/python", "-m", "app.detector"]
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD}@postgres:5432/agent
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LEDGER_EVENTS_TOPIC: ledger.events
+      # Must equal the simulator's time scale (see .env.example).
+      DETECTOR_TIME_SCALE: ${SIM_TIME_SCALE:-3600}
+
 volumes:
   pgdata:
   kafkadata:

@@ -45,7 +45,7 @@ Every payload carries an envelope: `event_id`, `event_type`, `schema_version`, `
 
 | event_type | aggregate_id (Kafka key) | fields |
 |---|---|---|
-| `EntryPosted` | account id | `entry_id`, `transfer_id`, `account_id`, `counterparty_account_id`, `direction`, `amount_minor`, `currency`, `transfer_type`, `memo`, `account_created_at`, `counterparty_created_at`, `counterparty_is_system`, `posted_at` |
+| `EntryPosted` | account id | `entry_id`, `transfer_id`, `account_id`, `counterparty_account_id`, `direction`, `amount_minor`, `currency`, `transfer_type`, `memo`, `account_created_at`, `account_is_system`, `counterparty_created_at`, `counterparty_is_system`, `posted_at` |
 | `TransferPosted` | transfer id | `transfer_id`, `type`, `from_account_id`, `to_account_id`, `amount_minor`, `currency`, `memo`, `reverses_transfer_id`, `from_account_created_at`, `to_account_created_at`, `from_is_system`, `to_is_system`, `posted_at` |
 
 `memo` is user-supplied free text. Consumers must treat it as untrusted.
