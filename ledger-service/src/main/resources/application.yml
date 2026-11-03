@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: ledger-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${SPRING_DATASOURCE_USERNAME:ledger}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      fail-on-unknown-properties: true
+      # Money safety: 10.5 must not silently become 10, and "100" must not become 100.
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+ledger:
+  security:
+    # name:ROLE:key, comma separated. Roles: CLIENT, READONLY, ADMIN.
+    api-keys: ${LEDGER_API_KEYS:}
+  transfer:
+    max-amount-minor: ${LEDGER_MAX_AMOUNT_MINOR:1000000000}
+  idempotency:
+    ttl: ${LEDGER_IDEMPOTENCY_TTL:PT24H}
+    cleanup-interval: ${LEDGER_IDEMPOTENCY_CLEANUP_INTERVAL:PT10M}
+  retry:
+    max-retries: 3
+  reconcile:
+    interval: ${LEDGER_RECONCILE_INTERVAL:PT5M}
+  read:
+    max-window: P30D
+    max-limit: 100
+    default-limit: 50

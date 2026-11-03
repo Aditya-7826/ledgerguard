@@ -1,0 +1,41 @@
+name: ledgerguard
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      LEDGER_DB_PASSWORD: ${LEDGER_DB_PASSWORD:?set LEDGER_DB_PASSWORD in .env}
+      AGENT_DB_PASSWORD: ${AGENT_DB_PASSWORD:?set AGENT_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      # -h 127.0.0.1: the init-time temporary server listens only on the socket, so this
+      # doesn't report healthy until the real server is up.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d ledger"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  ledger-service:
+    build: ./ledger-service
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger
+      SPRING_DATASOURCE_USERNAME: ledger
+      SPRING_DATASOURCE_PASSWORD: ${LEDGER_DB_PASSWORD}
+      LEDGER_API_KEYS: "client:CLIENT:${LEDGER_CLIENT_API_KEY:?},mcp:READONLY:${LEDGER_READONLY_API_KEY:?},agent:ADMIN:${LEDGER_ADMIN_API_KEY:?}"
+      LEDGER_MAX_AMOUNT_MINOR: ${LEDGER_MAX_AMOUNT_MINOR:-1000000000}
+      LEDGER_IDEMPOTENCY_TTL: ${LEDGER_IDEMPOTENCY_TTL:-PT24H}
+    ports:
+      - "${LEDGER_PORT:-8080}:8080"
+
+volumes:
+  pgdata:
