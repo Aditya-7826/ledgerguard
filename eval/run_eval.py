@@ -135,6 +135,21 @@ def other_stacks_running() -> list[str]:
     return sorted({p for p in r.stdout.split() if p in OTHER_PROJECTS})
 
 
+def poll_progress(stack: Stack, attempts: int = 5, backoff_s: float = 15) -> dict:
+    """One progress read, retried: a single failed `docker compose exec` (Docker briefly unresponsive
+    on a low-memory host) must not abort a multi-hour run and tear down its stack."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return stack.row("agent", PROGRESS_SQL)
+        except subprocess.CalledProcessError as e:
+            if attempt == attempts:
+                raise
+            log(f"  progress poll failed (attempt {attempt}/{attempts}, exit {e.returncode}): "
+                f"{(e.stderr or '').strip()[:200]}; retrying in {backoff_s:.0f}s")
+            time.sleep(backoff_s)
+    raise AssertionError("unreachable")
+
+
 def wait_settled(stack: Stack, timeout_s: float, quiet_polls: int = 3, every_s: float = 10,
                  max_cases: int | None = None) -> dict:
     """Done when no case is OPEN/INVESTIGATING, no agent run is RUNNING, and the detector's processed
@@ -143,7 +158,7 @@ def wait_settled(stack: Stack, timeout_s: float, quiet_polls: int = 3, every_s: 
     deadline = time.monotonic() + timeout_s
     last_events, quiet = -1, 0
     while True:
-        p = stack.row("agent", PROGRESS_SQL)
+        p = poll_progress(stack)
         log(f"  events={p['events']} cases={p['cases']} pending={p['pending']} running={p['running']} "
             f"ok={p['succeeded']} failed={p['failed']}")
         if p["failed"] >= 5 and p["succeeded"] == 0:
