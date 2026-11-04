@@ -32,3 +32,7 @@ Thumbs.db
 
 # Eval working files (labels, raw case dumps) and fake-LLM smoke runs; real results go to eval/results/
 eval/runs/
+
+# JVM crash dumps (e.g. from the VS Code Java extension)
+hs_err_pid*.log
+replay_pid*.log

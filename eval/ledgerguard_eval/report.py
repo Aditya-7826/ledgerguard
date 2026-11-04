@@ -46,12 +46,14 @@ def render(result: dict[str, Any]) -> str:
     lines = [f"# LedgerGuard eval — {result['timestamp']}", ""]
     if cfg["llm_provider"] == "fake":
         lines += ["> **Harness smoke test with the deterministic fake LLM. These are not model results.**", ""]
+    if cfg.get("max_cases"):
+        lines += [f"> **Smoke test: only the first {cfg['max_cases']} investigated cases of each run are scored.**", ""]
     lines += [
         f"- Model: `{cfg['llm_provider']}` / `{cfg['llm_model'] or '-'}` (temperature 0)",
         f"- Runs: {len(result['runs'])} × full simulator scenario set (seed {cfg['seed']}), fresh stack each run",
         f"- Auto-clear policy: CLEAR, risk < {cfg['auto_clear_max_risk']}, confidence ≥ "
         f"{cfg['auto_clear_min_confidence']}, no injection / timeout / budget / low-quality flag",
-        f"- Cost: {'tracked' if cfg['cost_tracked'] else 'not tracked (no per-token prices in .env)'}",
+        f"- Cost: {cfg.get('cost_note') or ('tracked' if cfg['cost_tracked'] else 'not tracked (no per-token prices in .env)')}",
         "",
         "| Metric | Mean ± std | Per run |",
         "|---|---|---|",

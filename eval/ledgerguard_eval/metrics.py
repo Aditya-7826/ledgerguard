@@ -17,7 +17,9 @@ def _rate(num: int, den: int) -> float | None:
     return num / den if den else None
 
 
-def run_metrics(cases: list[dict], labels: list[dict], exposed_accounts: set[str]) -> dict[str, Any]:
+def run_metrics(cases: list[dict], labels: list[dict], exposed_accounts: set[str],
+                free_model: bool = False) -> dict[str, Any]:
+    """free_model: a local model (Ollama) whose cost is a true $0, not \"not tracked\"."""
     label_of = {row["account_id"]: row for row in labels}
     labelled = [(c, label_of[c["account_id"]]) for c in cases if c["account_id"] in label_of]
     unlabelled = len(cases) - len(labelled)
@@ -81,10 +83,12 @@ def run_metrics(cases: list[dict], labels: list[dict], exposed_accounts: set[str
         "avg_input_tokens_per_run": _rate(tot["input_tokens"], runs),
         "avg_output_tokens_per_run": _rate(tot["output_tokens"], runs),
         "avg_latency_s_per_run": _rate(tot["latency_ms"], runs * 1000),
-        # micro-USD → USD. None when no prices were configured (cost not tracked).
-        "avg_cost_usd_per_case": (_rate(tot["cost_micro_usd"], len(cases) * 1_000_000)
-                                  if tot["cost_micro_usd"] else None),
-        "total_cost_usd": tot["cost_micro_usd"] / 1_000_000 if tot["cost_micro_usd"] else None,
+        # micro-USD → USD. Local model: exactly 0. Otherwise None when no prices were configured.
+        "avg_cost_usd_per_case": (0.0 if free_model and cases else
+                                  _rate(tot["cost_micro_usd"], len(cases) * 1_000_000) if tot["cost_micro_usd"]
+                                  else None),
+        "total_cost_usd": (0.0 if free_model else
+                           tot["cost_micro_usd"] / 1_000_000 if tot["cost_micro_usd"] else None),
     }
 
 

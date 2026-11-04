@@ -107,3 +107,8 @@ def test_render_marks_fake_runs_and_unmeasurable_metrics():
     assert "not model results" in md
     assert "| Precision (RECOMMEND_FREEZE vs FRAUD) | not measurable | n/a |" in md
     assert "not tracked" in md
+
+
+def test_local_model_cost_is_zero_not_untracked():
+    m = run_metrics([case("l1", "ESCALATE")], LABELS, set(), free_model=True)
+    assert m["avg_cost_usd_per_case"] == 0.0 and m["total_cost_usd"] == 0.0
