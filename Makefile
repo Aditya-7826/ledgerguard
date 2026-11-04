@@ -20,7 +20,7 @@ help:
 	@echo "make simulate    - drive the ledger with baseline traffic + fraud scenarios (writes eval/labels.jsonl)"
 	@echo "                   then open the analyst console at http://localhost:3000"
 	@echo "make test        - run every service's tests"
-	@echo "make eval        - score the agent on 3 full scenario runs (needs LLM_MODEL + ANTHROPIC_API_KEY)"
+	@echo "make eval        - score the agent on 3 full scenario runs (~6 h with a local model; see README)"
 	@echo "make loadtest    - k6 load test + retry storm against an isolated ledger stack"
 	@echo "make reconcile   - call the ledger reconcile endpoint"
 
