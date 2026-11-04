@@ -180,6 +180,9 @@ def wait_settled(stack: Stack, timeout_s: float, quiet_polls: int = 3, every_s: 
 
 def run_once(stack: Stack, i: int, args, work_dir: Path) -> dict:
     log(f"=== run {i} of {args.runs} ===")
+    if args.resume:
+        return score_run(stack, i, args, work_dir, run_id=f"eval{work_dir.name}r{i}", t0=None,
+                         sim_summary=None)
     stack.down()
     # The agent starts only after the simulation: a CPU-bound local model running alongside it would
     # slow the simulator, stretch its timed bursts and make the detector miss scenarios.
@@ -203,6 +206,14 @@ def run_once(stack: Stack, i: int, args, work_dir: Path) -> dict:
     stack.up("agent-worker")
     if args.provider == "ollama":
         check_container_reaches_ollama(stack)
+    return score_run(stack, i, args, work_dir, run_id, t0, sim_summary)
+
+
+def score_run(stack: Stack, i: int, args, work_dir: Path, run_id: str, t0: float | None,
+              sim_summary: dict | None) -> dict:
+    """Wait for the investigations to settle, then score them. t0/sim_summary are None when resuming a
+    stack whose eval process died: wall-clock times and the simulator summary are then unknown."""
+    labels_path = work_dir / f"labels-run{i}.jsonl"
     t_agent = time.monotonic()
     progress = wait_settled(stack, args.timeout, max_cases=args.max_cases)
     if args.max_cases:
@@ -217,13 +228,18 @@ def run_once(stack: Stack, i: int, args, work_dir: Path) -> dict:
     (work_dir / f"cases-run{i}.json").write_text(json.dumps(cases, indent=1), encoding="utf-8")
     log(f"run {i}: {len(cases)} cases, precision={metrics['precision']}, recall={metrics['recall']}, "
         f"auto_clear={metrics['auto_clear_rate']}, leak={metrics['fraud_leak_rate_auto_cleared']}")
-    return {"run": i, "run_id": run_id, "wall_seconds": round(time.monotonic() - t0),
-            "agent_wall_seconds": round(time.monotonic() - t_agent),
-            "simulator": {k: sim_summary.get(k) for k in ("accounts", "steps", "scenarios", "run")},
+    resumed = t0 is None
+    return {"run": i, "run_id": run_id, "resumed": resumed,
+            "wall_seconds": None if resumed else round(time.monotonic() - t0),
+            "agent_wall_seconds": None if resumed else round(time.monotonic() - t_agent),
+            "simulator": None if sim_summary is None else
+                         {k: sim_summary.get(k) for k in ("accounts", "steps", "scenarios", "run")},
             "final_progress": progress, "metrics": metrics}
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The report contains "≥"/"×"; a Windows console's default code page can't print them.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(prog="run_eval")
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--seed", type=int, default=42)
@@ -234,7 +250,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--allow-fake", action="store_true",
                     help="permit LLM_PROVIDER=fake (harness smoke test; results go to eval/runs/fake)")
     ap.add_argument("--keep-stack", action="store_true", help="leave the last run's stack up for inspection")
+    ap.add_argument("--resume", type=Path, default=None, metavar="WORK_DIR",
+                    help="score a still-running eval stack whose eval process died, using the labels in "
+                         "WORK_DIR (eval/runs/<timestamp>); single run only, nothing is re-simulated")
     args = ap.parse_args(argv)
+    if args.resume:
+        if args.runs != 1 or not (args.resume / "labels-run1.jsonl").is_file():
+            raise SystemExit("--resume needs --runs 1 and a work dir containing labels-run1.jsonl")
 
     stack = Stack(PROJECT, args.env_file.resolve(), PORTS)
     env = stack.env
@@ -255,10 +277,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"other LedgerGuard stacks are running ({', '.join(running)}); stop them first "
                          "(`make down`) so the eval has the memory to itself")
 
-    ts = timestamp()
+    ts = args.resume.resolve().name if args.resume else timestamp()
     smoke = provider == "fake" or bool(args.max_cases)
     out_dir = ROOT / "eval" / ("runs/smoke" if smoke else "results")
-    work_dir = ROOT / "eval" / "runs" / ts
+    work_dir = args.resume.resolve() if args.resume else ROOT / "eval" / "runs" / ts
     work_dir.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
 

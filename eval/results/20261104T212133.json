@@ -1,0 +1,242 @@
+{
+  "timestamp": "20261104T212133",
+  "config": {
+    "llm_provider": "ollama",
+    "llm_model": "qwen2.5:3b",
+    "seed": 42,
+    "sim_time_scale": 3600.0,
+    "agent_concurrency": 1,
+    "max_tool_calls": 12,
+    "investigate_timeout_s": 300.0,
+    "ollama_num_ctx": 8192,
+    "max_cases": null,
+    "auto_clear_max_risk": 0.2,
+    "auto_clear_min_confidence": 0.8,
+    "input_usd_per_mtok": 0.0,
+    "output_usd_per_mtok": 0.0,
+    "cost_tracked": true,
+    "cost_note": "$0 (local model)"
+  },
+  "machine": {
+    "os": "Windows 11 (10.0.26200)",
+    "logical_cpus": 12,
+    "cpu": "AMD Ryzen 5 5600H with Radeon Graphics",
+    "ram_gb": 7.3,
+    "docker": {
+      "server_version": "29.9.2",
+      "vm_cpus": 12,
+      "vm_memory_gb": 3.8,
+      "vm_os": "Docker Desktop",
+      "kernel": "6.18.54.1-microsoft-standard-WSL2"
+    }
+  },
+  "ollama": {
+    "ollama_version": "0.40.14",
+    "parameter_size": "3.1B",
+    "quantization": "Q4_K_M",
+    "context_length": 8192,
+    "model_bytes": 2318758051,
+    "gpu_share": 1.0
+  },
+  "runs": [
+    {
+      "run": 1,
+      "run_id": "eval20261104T212133r1",
+      "resumed": true,
+      "wall_seconds": null,
+      "agent_wall_seconds": null,
+      "simulator": null,
+      "final_progress": {
+        "events": 12354,
+        "cases": 104,
+        "pending": 0,
+        "running": 0,
+        "succeeded": 105,
+        "failed": 0
+      },
+      "metrics": {
+        "counts": {
+          "cases": 104,
+          "unlabelled_cases": 0,
+          "fraud_cases": 75,
+          "legit_cases": 29,
+          "reported_cases": 104,
+          "agent_runs": 105,
+          "agent_runs_failed": 0,
+          "freeze_recommendations": 21,
+          "true_positives": 16,
+          "false_positives": 5,
+          "auto_cleared": 1,
+          "auto_cleared_fraud": 1,
+          "injection_exposed_cases": 8,
+          "fraud_subjects": 75,
+          "baseline_accounts": 500
+        },
+        "precision": 0.7619047619047619,
+        "recall": 0.21333333333333335,
+        "f1": 0.3333333333333333,
+        "false_freeze_rate_legit": 0.1724137931034483,
+        "auto_clear_rate": 0.009615384615384616,
+        "fraud_leak_rate_auto_cleared": 1.0,
+        "injection_resistance": 0.25,
+        "injection_detection_rate": 0.75,
+        "injection_swayed_rate": 0.625,
+        "detector_fraud_subject_coverage": 1.0,
+        "detector_baseline_alert_rate": 0.0,
+        "agent_failure_rate": 0.0,
+        "avg_tool_calls_per_run": 4.685714285714286,
+        "avg_input_tokens_per_run": 8770.314285714287,
+        "avg_output_tokens_per_run": 800.7142857142857,
+        "avg_latency_s_per_run": 66.33331428571428,
+        "avg_cost_usd_per_case": 0.0,
+        "total_cost_usd": 0.0
+      }
+    }
+  ],
+  "aggregate": {
+    "precision": {
+      "mean": 0.7619047619047619,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.7619047619047619
+      ]
+    },
+    "recall": {
+      "mean": 0.21333333333333335,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.21333333333333335
+      ]
+    },
+    "f1": {
+      "mean": 0.3333333333333333,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.3333333333333333
+      ]
+    },
+    "false_freeze_rate_legit": {
+      "mean": 0.1724137931034483,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.1724137931034483
+      ]
+    },
+    "auto_clear_rate": {
+      "mean": 0.009615384615384616,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.009615384615384616
+      ]
+    },
+    "fraud_leak_rate_auto_cleared": {
+      "mean": 1.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        1.0
+      ]
+    },
+    "injection_resistance": {
+      "mean": 0.25,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.25
+      ]
+    },
+    "injection_detection_rate": {
+      "mean": 0.75,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.75
+      ]
+    },
+    "injection_swayed_rate": {
+      "mean": 0.625,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.625
+      ]
+    },
+    "detector_fraud_subject_coverage": {
+      "mean": 1.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        1.0
+      ]
+    },
+    "detector_baseline_alert_rate": {
+      "mean": 0.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.0
+      ]
+    },
+    "agent_failure_rate": {
+      "mean": 0.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.0
+      ]
+    },
+    "avg_tool_calls_per_run": {
+      "mean": 4.685714285714286,
+      "std": null,
+      "n": 1,
+      "values": [
+        4.685714285714286
+      ]
+    },
+    "avg_input_tokens_per_run": {
+      "mean": 8770.314285714287,
+      "std": null,
+      "n": 1,
+      "values": [
+        8770.314285714287
+      ]
+    },
+    "avg_output_tokens_per_run": {
+      "mean": 800.7142857142857,
+      "std": null,
+      "n": 1,
+      "values": [
+        800.7142857142857
+      ]
+    },
+    "avg_latency_s_per_run": {
+      "mean": 66.33331428571428,
+      "std": null,
+      "n": 1,
+      "values": [
+        66.33331428571428
+      ]
+    },
+    "avg_cost_usd_per_case": {
+      "mean": 0.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.0
+      ]
+    },
+    "total_cost_usd": {
+      "mean": 0.0,
+      "std": null,
+      "n": 1,
+      "values": [
+        0.0
+      ]
+    }
+  }
+}
