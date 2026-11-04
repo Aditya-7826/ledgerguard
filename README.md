@@ -31,3 +31,7 @@ Not yet measured.
 Retry storm: 10,000 transfers each sent 2–3 times with the same `Idempotency-Key` (25,000 requests, half of them concurrent duplicates) created exactly 10,000 transfers and 20,000 entries; 0 replays differed from the original response, 0 duplicate transfers exist, and reconcile reported `ok=true` with a net of 0 across 112,002 entries.
 
 <!-- RESULTS:END -->
+
+## License
+
+MIT. See [LICENSE](LICENSE).
