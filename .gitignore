@@ -29,3 +29,6 @@ dist/
 *.iml
 .DS_Store
 Thumbs.db
+
+# Eval working files (labels, raw case dumps) and fake-LLM smoke runs; real results go to eval/results/
+eval/runs/

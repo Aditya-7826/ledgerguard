@@ -1,0 +1,90 @@
+{
+  "timestamp": "20261104T122815",
+  "config": {
+    "run_id": "lt20261104T122815",
+    "vus": 50,
+    "duration_s": 60,
+    "accounts": 200,
+    "storm_requests": 10000
+  },
+  "machine": {
+    "os": "Windows 11 (10.0.26200)",
+    "logical_cpus": 12,
+    "cpu": "AMD Ryzen 5 5600H with Radeon Graphics",
+    "ram_gb": 7.3,
+    "docker": {
+      "server_version": "29.9.2",
+      "vm_cpus": 12,
+      "vm_memory_gb": 5.8,
+      "vm_os": "Docker Desktop",
+      "kernel": "6.18.54.1-microsoft-standard-WSL2"
+    }
+  },
+  "scenarios": {
+    "uniform": {
+      "requests": 37195,
+      "failed_rate": 0,
+      "latency_ms": {
+        "avg": 79.89,
+        "p(50)": 69.12,
+        "p(95)": 171.84,
+        "p(99)": 245.49,
+        "max": 507.38
+      },
+      "throughput_rps": 619.9
+    },
+    "hot_account": {
+      "requests": 8606,
+      "failed_rate": 0,
+      "latency_ms": {
+        "avg": 349.22,
+        "p(50)": 359.26,
+        "p(95)": 458.9,
+        "p(99)": 532.32,
+        "max": 716.68
+      },
+      "throughput_rps": 143.4
+    },
+    "retry_storm": {
+      "requests": 25000,
+      "failed_rate": 0,
+      "latency_ms": {
+        "avg": 54.75,
+        "p(50)": 48.73,
+        "p(95)": 119.41,
+        "p(99)": 162.39,
+        "max": 330.68
+      }
+    }
+  },
+  "transfer_non_201": 0,
+  "storm": {
+    "keys": 10000,
+    "sends": 25000,
+    "mismatched_replays": 0,
+    "first_not_201": 0
+  },
+  "integrity": {
+    "duplicate_transfers_any_key": 0,
+    "storm_logical_requests": 10000,
+    "storm_transfers_created": 10000,
+    "storm_distinct_keys": 10000,
+    "storm_entries": 20000,
+    "ledger_totals": {
+      "transfers": 56001,
+      "entries": 112002,
+      "outbox_unpublished": 0
+    },
+    "pass": true
+  },
+  "reconcile": {
+    "ok": true,
+    "entries_net_minor": 0,
+    "accounts_checked": 203,
+    "entries_checked": 112002,
+    "mismatches": [],
+    "as_of": "2026-11-04T07:01:50.465798Z"
+  },
+  "k6_summary_file": "20261104T122815-k6-summary.json",
+  "pass": true
+}

@@ -1,0 +1,20 @@
+[project]
+name = "ledgerguard-eval"
+version = "0.1.0"
+description = "LedgerGuard eval harness: scores agent verdicts against simulator ground truth"
+requires-python = ">=3.12,<3.13"
+# Runtime is stdlib only (talks to the stack via docker compose / psql and the simulator via uv).
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "../scripts", "../simulator"]
+addopts = "-ra"
