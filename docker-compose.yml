@@ -109,14 +109,25 @@ services:
     environment:
       AGENT_DATABASE_URL: postgresql://agent:${AGENT_DB_PASSWORD}@postgres:5432/agent
       MCP_URL: http://mcp-server:8000/mcp
-      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       LLM_MODEL: ${LLM_MODEL:-}
+      # Ollama runs natively on the host; from a container the host is host.docker.internal.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_DOCKER:-http://host.docker.internal:11434}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
+      # Optional, only for LLM_PROVIDER=anthropic.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       LLM_INPUT_USD_PER_MTOK: ${LLM_INPUT_USD_PER_MTOK:-0}
       LLM_OUTPUT_USD_PER_MTOK: ${LLM_OUTPUT_USD_PER_MTOK:-0}
-      AGENT_CONCURRENCY: ${AGENT_CONCURRENCY:-4}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-180}
+      AGENT_MAX_TOOL_CALLS: ${AGENT_MAX_TOOL_CALLS:-12}
+      AGENT_INVESTIGATE_TIMEOUT_S: ${AGENT_INVESTIGATE_TIMEOUT_S:-300}
+      AGENT_TOOL_OUTPUT_MAX_CHARS: ${AGENT_TOOL_OUTPUT_MAX_CHARS:-3000}
+      # One investigation at a time: a CPU model serves requests one by one anyway.
+      AGENT_CONCURRENCY: ${AGENT_CONCURRENCY:-1}
       SIM_TIME_SCALE: ${SIM_TIME_SCALE:-3600}
       # No ledger key of any kind: the worker sees the ledger only through the read-only MCP server.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   agent-api:
     build: ./agent-service

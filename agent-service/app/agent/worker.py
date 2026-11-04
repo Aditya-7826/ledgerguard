@@ -6,10 +6,11 @@ Holds no ledger key at all: its only view of the ledger is the READONLY MCP serv
 import asyncio
 import logging
 
+import httpx
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from app.agent.graph import Deps, build_graph, run_case
-from app.agent.llm import make_llm
+from app.agent.llm import make_llm, make_report_llm
 from app.agent.repo import AgentRepo
 from app.config import Settings
 from app.db import connect, migrate
@@ -51,12 +52,34 @@ async def load_tools(mcp_url: str):
     raise RuntimeError("MCP server unreachable")
 
 
+async def check_ollama(base_url: str, model: str) -> None:
+    """Fails fast with a clear message if Ollama is unreachable or the model isn't pulled."""
+    for attempt in range(30):
+        try:
+            async with httpx.AsyncClient(timeout=5) as http:
+                tags = (await http.get(f"{base_url.rstrip('/')}/api/tags")).json()
+            break
+        except (httpx.HTTPError, ValueError) as e:
+            log.warning("waiting for Ollama at %s (%s)", base_url, type(e).__name__)
+            await asyncio.sleep(min(2 + attempt, 10))
+    else:
+        raise RuntimeError(f"Ollama unreachable at {base_url}")
+    names = {m.get("name") for m in tags.get("models", [])} | {m.get("model") for m in tags.get("models", [])}
+    if model not in names and f"{model}:latest" not in names:
+        raise RuntimeError(f"Ollama model {model!r} is not pulled (have: {sorted(n for n in names if n)}); "
+                           f"run `ollama pull {model}`")
+    log.info("Ollama at %s has %s", base_url, model)
+
+
 async def main() -> None:
     s = Settings()
     migrate(s.agent_database_url)
+    if s.llm_provider.lower() == "ollama":
+        await check_ollama(s.ollama_base_url, s.llm_model)
     tools = await load_tools(s.mcp_url)
     log.info("loaded %d MCP tools: %s", len(tools), sorted(t.name for t in tools))
-    deps = Deps(settings=s, llm=make_llm(s), tools=tools, repo=AgentRepo(s.agent_database_url))
+    deps = Deps(settings=s, llm=make_llm(s), tools=tools, repo=AgentRepo(s.agent_database_url),
+                report_llm=make_report_llm(s))
     graph = build_graph(deps)
     slots = asyncio.Semaphore(s.agent_concurrency)
     running: set[asyncio.Task] = set()

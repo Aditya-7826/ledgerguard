@@ -17,19 +17,46 @@ from app.config import Settings
 ACCOUNT_RE = re.compile(r"ACCOUNT_ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 
 
+PROVIDERS = ("ollama", "anthropic", "fake")
+# Providers that run locally: no per-token cost, whatever prices are configured.
+FREE_PROVIDERS = ("ollama", "fake")
+
+
+def _ollama(settings: Settings, **extra: Any) -> BaseChatModel:
+    from langchain_ollama import ChatOllama
+
+    return ChatOllama(model=settings.llm_model, base_url=settings.ollama_base_url, temperature=0,
+                      num_ctx=settings.ollama_num_ctx, keep_alive=settings.ollama_keep_alive, **extra)
+
+
 def make_llm(settings: Settings) -> BaseChatModel:
+    """The investigation model (tools get bound to it). Never needs an API key unless anthropic."""
     provider = settings.llm_provider.lower()
     if provider == "fake":
         return HeuristicFakeModel()
+    if provider not in PROVIDERS:
+        raise ValueError(f"unsupported LLM_PROVIDER {settings.llm_provider!r} (supported: {', '.join(PROVIDERS)})")
     if not settings.llm_model:
         raise ValueError("LLM_MODEL must be set (the model is never hardcoded)")
-    if provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic  # reads ANTHROPIC_API_KEY from the environment
+    if provider == "ollama":
+        return _ollama(settings)
+    from langchain_anthropic import ChatAnthropic  # optional; reads ANTHROPIC_API_KEY from the environment
 
-        # Retries/timeouts are handled by the agent so every attempt is traced; disable the SDK's own.
-        return ChatAnthropic(model=settings.llm_model, temperature=0, max_retries=0,
-                             default_request_timeout=settings.llm_timeout_s, max_tokens=4096)
-    raise ValueError(f"unsupported LLM_PROVIDER {settings.llm_provider!r} (supported: anthropic, fake)")
+    # Retries/timeouts are handled by the agent so every attempt is traced; disable the SDK's own.
+    return ChatAnthropic(model=settings.llm_model, temperature=0, max_retries=0,
+                         default_request_timeout=settings.llm_timeout_s, max_tokens=4096)
+
+
+def make_report_llm(settings: Settings) -> BaseChatModel | None:
+    """Model used to write the final report, or None to reuse the investigation model.
+
+    Ollama: constrained decoding against the report's JSON schema, so a small model can only emit
+    a syntactically valid report (it is still validated, and citations still checked, afterwards)."""
+    if settings.llm_provider.lower() != "ollama" or not settings.llm_model:
+        return None
+    from app.agent.report import ReportDraft
+
+    return _ollama(settings, format=ReportDraft.model_json_schema())
 
 
 def _usage(i: int, o: int) -> dict[str, int]:

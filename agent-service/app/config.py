@@ -52,9 +52,14 @@ class Settings(BaseSettings):
     detector_time_scale: float = Field(default=1.0, gt=0)
 
     # LLM. The model is never hardcoded: LLM_MODEL must be set for real providers.
-    llm_provider: str = "anthropic"
+    # ollama (default, local, no key) | anthropic (optional, needs ANTHROPIC_API_KEY) | fake (keyless demo)
+    llm_provider: str = "ollama"
     llm_model: str = ""
-    llm_timeout_s: float = Field(default=60.0, gt=0)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_num_ctx: int = Field(default=8192, ge=2048)
+    ollama_keep_alive: str = "30m"
+    # Per LLM call. Generous: a small model on CPU can take a while per step.
+    llm_timeout_s: float = Field(default=180.0, gt=0)
     llm_max_retries: int = Field(default=2, ge=0)
     llm_retry_backoff_s: float = Field(default=1.0, ge=0)
     # Cost estimate inputs (USD per million tokens). Leave 0 if unknown: cost is then reported as 0.
@@ -63,8 +68,14 @@ class Settings(BaseSettings):
 
     # agent
     mcp_url: str = "http://localhost:8000/mcp"
-    agent_max_tool_calls: int = Field(default=25, ge=1)
-    agent_investigate_timeout_s: float = Field(default=120.0, gt=0)
+    agent_max_tool_calls: int = Field(default=12, ge=1)
+    agent_investigate_timeout_s: float = Field(default=300.0, gt=0)
+    # Each tool result is shrunk to this many characters before the model sees it (lists are cut,
+    # JSON stays valid). The full output is still kept in the trace.
+    agent_tool_output_max_chars: int = Field(default=3000, ge=500)
+    # Stop investigating once the conversation exceeds this many characters (~4 chars/token), so the
+    # report still fits in the model's context window. Counts as an incomplete investigation.
+    agent_context_max_chars: int = Field(default=18000, ge=2000)
     agent_auto_clear_max_risk: float = Field(default=0.2, ge=0, le=1)
     agent_auto_clear_min_confidence: float = Field(default=0.8, ge=0, le=1)
     agent_concurrency: int = Field(default=4, ge=1)

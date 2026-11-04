@@ -64,7 +64,7 @@ def fake_tools(sleep: float = 0.0, calls: list | None = None):
 
 @pytest.fixture()
 def settings(db_url) -> Settings:
-    return Settings(agent_database_url=db_url, llm_provider="fake", llm_retry_backoff_s=0, llm_timeout_s=5,
+    return Settings(agent_database_url=db_url, llm_provider="anthropic", llm_model="test-model", llm_retry_backoff_s=0, llm_timeout_s=5,
                     llm_input_usd_per_mtok=3.0, llm_output_usd_per_mtok=15.0)
 
 
@@ -131,12 +131,13 @@ async def test_detected_injection_blocks_auto_clear(settings, case, conn):
 
 # ---- budget & timeout ---------------------------------------------------------------------------------
 
-async def test_tool_budget_is_hard_capped_at_25(settings, case, conn):
+async def test_tool_budget_is_hard_capped_at_12(settings, case, conn):
     calls: list = []
     three = lambda _: AIMessage(content="", tool_calls=[  # noqa: E731
         {"name": "list_transfers", "args": {"account_id": "x"}, "id": f"c{next(_ids)}"} for _ in range(3)])
     run, _ = await investigate(settings, case, policy(investigate=three, final=report()), fake_tools(calls=calls))
-    assert len(calls) == 25 and run.tool_calls == 25
+    assert settings.agent_max_tool_calls == 12
+    assert len(calls) == 12 and run.tool_calls == 12
     assert "tool_budget_exhausted" in run.flags
     assert run.outcome == "PENDING_REVIEW"  # an incomplete investigation never auto-clears
 

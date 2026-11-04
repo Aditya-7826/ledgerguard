@@ -5,7 +5,9 @@ Safety properties enforced here (not by the model):
 - auto-clear needs verdict=CLEAR, risk < threshold, confidence ≥ threshold, valid citations and no
   detected injection; any error, timeout or invalid output ends in PENDING_REVIEW ("agent_failed");
 - investigate has a hard tool-call budget and a wall-clock deadline;
-- every cited transfer_id must have appeared in this run's tool outputs (re-ask once, else low_quality).
+- every cited transfer_id must have appeared in this run's tool outputs (re-ask once, else low_quality);
+- tool output is shrunk before the model sees it, and the conversation has a size budget; hitting it
+  (like the tool budget or the deadline) marks the investigation incomplete, which blocks auto-clear.
 """
 
 import asyncio
@@ -23,10 +25,12 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 
 from app.agent import prompts
+from app.agent.llm import FREE_PROVIDERS
 from app.agent.repo import AgentRepo
 from app.agent.report import (
     Report, ReportDraft, ReportParseError, collect_from_tool_output, invalid_citations, parse_report,
 )
+from app.agent.truncate import truncate_tool_output
 from app.config import Settings
 
 log = logging.getLogger(__name__)
@@ -43,6 +47,8 @@ class Deps:
     llm: BaseChatModel
     tools: list[BaseTool]
     repo: AgentRepo
+    # Writes the final report (e.g. Ollama with JSON-schema constrained output). None: use `llm`.
+    report_llm: BaseChatModel | None = None
 
 
 @dataclass
@@ -105,10 +111,23 @@ async def _call_llm(deps: Deps, run: Run, llm, purpose: str, timeout: float | No
     raise LLMFailure(last_error)
 
 
+def _context_chars(messages: list[BaseMessage]) -> int:
+    n = 0
+    for m in messages:
+        n += len(_text(m.content))
+        for c in getattr(m, "tool_calls", None) or []:
+            n += len(json.dumps(c.get("args", {}), default=str)) + len(c.get("name", ""))
+    return n
+
+
+INCOMPLETE_FLAGS = {"investigation_timeout", "tool_budget_exhausted", "context_budget_exhausted"}
+
+
 def build_graph(deps: Deps):
     s = deps.settings
     tools_by_name = {t.name: t for t in deps.tools}
     llm_tools = deps.llm.bind_tools(deps.tools)
+    report_llm = deps.report_llm or llm_tools
 
     async def load_case(state: State) -> State:
         run = state["run"]
@@ -132,6 +151,10 @@ def build_graph(deps: Deps):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 run.flags.append("investigation_timeout")
+                break
+            if run.tool_calls and _context_chars(run.messages) > s.agent_context_max_chars:
+                run.flags.append("context_budget_exhausted")
+                run.trace.append({"type": "context_budget_exhausted", "chars": _context_chars(run.messages)})
                 break
             try:
                 msg = await _call_llm(deps, run, llm_tools, "investigate", timeout=min(s.llm_timeout_s, remaining))
@@ -173,11 +196,15 @@ def build_graph(deps: Deps):
                 content = json.dumps({"error": {"code": "timeout", "message": "tool call hit the time limit"}})
             except Exception as e:  # noqa: BLE001 - a broken tool must not crash the investigation
                 content = json.dumps({"error": {"code": "tool_failed", "message": type(e).__name__}})
-        collect_from_tool_output(content, run.seen_ids, run.as_ofs)
-        run.trace.append({"type": "tool", "name": call["name"], "args": call["args"],
-                          "latency_ms": int((time.monotonic() - t0) * 1000),
-                          "output": content[:MAX_TOOL_OUTPUT_IN_TRACE]})
-        return ToolMessage(content=content, tool_call_id=call["id"], name=call["name"])
+        shown = truncate_tool_output(content, s.agent_tool_output_max_chars)
+        # Citations are checked against what the model was actually shown, not the full output.
+        collect_from_tool_output(shown, run.seen_ids, run.as_ofs)
+        entry = {"type": "tool", "name": call["name"], "args": call["args"],
+                 "latency_ms": int((time.monotonic() - t0) * 1000), "output": content[:MAX_TOOL_OUTPUT_IN_TRACE]}
+        if shown is not content:
+            entry["shown_chars"] = len(shown)
+        run.trace.append(entry)
+        return ToolMessage(content=shown, tool_call_id=call["id"], name=call["name"])
 
     async def assess(state: State) -> State:
         run = state["run"]
@@ -185,7 +212,7 @@ def build_graph(deps: Deps):
             run.messages.append(HumanMessage(prompts.WRITE_REPORT))
         for attempt in range(s.llm_max_retries + 1):
             try:
-                msg = await _call_llm(deps, run, llm_tools, "assess")
+                msg = await _call_llm(deps, run, report_llm, "assess")
             except LLMFailure as e:
                 run.error = f"llm failed while writing the report: {e}"
                 return {"run": run, "next": "route"}
@@ -231,7 +258,7 @@ def build_graph(deps: Deps):
     async def route(state: State) -> State:
         run = state["run"]
         d = run.draft
-        incomplete = {"investigation_timeout", "tool_budget_exhausted"} & set(run.flags)
+        incomplete = INCOMPLETE_FLAGS & set(run.flags)
         auto_clear = (
             run.error is None and d is not None and not run.low_quality and not incomplete
             and d.verdict == "CLEAR" and d.risk_score < s.agent_auto_clear_max_risk
@@ -258,6 +285,8 @@ def build_graph(deps: Deps):
 
 
 def cost_micro_usd(s: Settings, input_tokens: int, output_tokens: int) -> int:
+    if s.llm_provider.lower() in FREE_PROVIDERS:
+        return 0  # local model: tokens and latency are still recorded, but there is no bill
     # USD per million tokens × tokens = micro-USD exactly; round once at the end.
     return round(input_tokens * s.llm_input_usd_per_mtok + output_tokens * s.llm_output_usd_per_mtok)
 
