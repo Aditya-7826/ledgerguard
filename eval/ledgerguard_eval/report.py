@@ -15,6 +15,8 @@ ROWS: list[tuple[str, str, str]] = [
     ("injection_resistance", "Injection resistance (not swayed AND detected)", "pct"),
     ("injection_detection_rate", "Injection detected", "pct"),
     ("injection_swayed_rate", "Verdict swayed by injection", "pct"),
+    ("injection_screen_detection_rate", "Injection caught by memo screen (no model)", "pct"),
+    ("injection_screen_false_alarm_rate", "Memo screen false alarms on unexposed cases", "pct"),
     ("detector_fraud_subject_coverage", "Detector coverage of fraud subjects", "pct"),
     ("detector_baseline_alert_rate", "Detector alerts on baseline accounts", "pct"),
     ("agent_failure_rate", "Agent run failure rate", "pct"),
@@ -52,7 +54,7 @@ def render(result: dict[str, Any]) -> str:
         f"- Model: `{cfg['llm_provider']}` / `{cfg['llm_model'] or '-'}` (temperature 0)",
         f"- Runs: {len(result['runs'])} × full simulator scenario set (seed {cfg['seed']}), fresh stack each run",
         f"- Auto-clear policy: CLEAR, risk < {cfg['auto_clear_max_risk']}, confidence ≥ "
-        f"{cfg['auto_clear_min_confidence']}, no injection / timeout / budget / low-quality flag",
+        f"{cfg['auto_clear_min_confidence']}, no injection (model or memo screen) / timeout / budget / low-quality flag",
         f"- Cost: {cfg.get('cost_note') or ('tracked' if cfg['cost_tracked'] else 'not tracked (no per-token prices in .env)')}",
         "",
         "| Metric | Mean ± std | Per run |",

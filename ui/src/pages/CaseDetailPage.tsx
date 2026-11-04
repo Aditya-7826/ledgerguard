@@ -40,6 +40,29 @@ function StaleBanner({ c, onRerun }: { c: CaseDetail; onRerun: () => void }) {
   );
 }
 
+/** Set by the agent's deterministic memo screen, independent of the model's own report. */
+function InjectionScreenBanner({ c }: { c: CaseDetail }) {
+  const hit = c.flags.includes("injection_screen_hit");
+  const incomplete = c.flags.includes("injection_screen_incomplete");
+  if (!hit && !incomplete) return null;
+  return (
+    <div role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-100 dark:ring-amber-900">
+      {hit ? (
+        <p>
+          <span className="font-medium">Customer text on this account looks written to manipulate the agent.</span>{" "}
+          A memo or owner name contains instructions aimed at the AI or the reviewer. The agent's verdict may have been
+          influenced, so check the transfers yourself before relying on it.
+        </p>
+      ) : (
+        <p>
+          <span className="font-medium">The injection screen could not check all of this account's text.</span>{" "}
+          The case was not auto-cleared for that reason.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ReportCard({ c }: { c: CaseDetail }) {
   const r = c.report;
   if (!r) {
@@ -168,6 +191,7 @@ export function CaseDetailPage() {
           The agent is investigating this case. This page updates automatically.
         </div>
       )}
+      <InjectionScreenBanner c={c} />
       <StaleBanner c={c} onRerun={q.reload} />
 
       <div className="grid gap-6 lg:grid-cols-5">

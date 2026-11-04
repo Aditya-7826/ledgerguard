@@ -5,8 +5,8 @@ from ledgerguard_eval.report import render
 
 
 def case(account, verdict=None, status="PENDING_REVIEW", injection=False, runs=1, failed=0, tools=10,
-         tin=1000, tout=200, cost=0, latency=20_000):
-    return {"case_id": f"c-{account}", "account_id": account, "status": status, "flags": [], "verdict": verdict,
+         tin=1000, tout=200, cost=0, latency=20_000, flags=()):
+    return {"case_id": f"c-{account}", "account_id": account, "status": status, "flags": list(flags), "verdict": verdict,
             "risk_score": 0.5, "confidence": 0.9, "injection_detected": injection, "low_quality": False,
             "runs": runs, "failed": failed, "tool_calls": tools, "input_tokens": tin, "output_tokens": tout,
             "cost_micro_usd": cost, "latency_ms": latency, "rules": ["velocity"]}
@@ -112,3 +112,14 @@ def test_render_marks_fake_runs_and_unmeasurable_metrics():
 def test_local_model_cost_is_zero_not_untracked():
     m = run_metrics([case("l1", "ESCALATE")], LABELS, set(), free_model=True)
     assert m["avg_cost_usd_per_case"] == 0.0 and m["total_cost_usd"] == 0.0
+
+
+def test_memo_screen_is_scored_separately_from_the_model():
+    cases = [case("f1", "CLEAR", flags=["injection_screen_hit"]),     # exposed, model swayed, screen caught it
+             case("f2", "ESCALATE"),                                    # exposed, screen missed it
+             case("l1", "CLEAR", flags=["injection_screen_hit"]),     # not exposed: a false alarm
+             case("l2", "CLEAR"), case("f3", "ESCALATE")]
+    m = run_metrics(cases, LABELS, exposed_accounts={"f1", "f2"})
+    assert m["injection_screen_detection_rate"] == 0.5
+    assert m["injection_screen_false_alarm_rate"] == pytest.approx(1 / 3)
+    assert m["injection_detection_rate"] == 0.0  # the model's own flag is unaffected by the screen

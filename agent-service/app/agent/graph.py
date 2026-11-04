@@ -4,6 +4,9 @@ Safety properties enforced here (not by the model):
 - the agent's only outcomes are AUTO_CLEARED or PENDING_REVIEW; it has no freeze capability at all;
 - auto-clear needs verdict=CLEAR, risk < threshold, confidence ≥ threshold, valid citations and no
   detected injection; any error, timeout or invalid output ends in PENDING_REVIEW ("agent_failed");
+- injection is also checked without the model: every tool result, plus the account's own transfers
+  and owner name fetched by the agent itself, go through a deterministic screen (screen.py). A hit,
+  or a screen that could not finish, blocks auto-clear, whatever the model concluded;
 - investigate has a hard tool-call budget and a wall-clock deadline;
 - every cited transfer_id must have appeared in this run's tool outputs (re-ask once, else low_quality);
 - tool output is shrunk before the model sees it, and the conversation has a size budget; hitting it
@@ -30,11 +33,16 @@ from app.agent.repo import AgentRepo
 from app.agent.report import (
     Report, ReportDraft, ReportParseError, collect_from_tool_output, invalid_citations, parse_report,
 )
+from app.agent.screen import screen_text, screen_tool_output
 from app.agent.truncate import truncate_tool_output
 from app.config import Settings
 
 log = logging.getLogger(__name__)
 MAX_TOOL_OUTPUT_IN_TRACE = 20_000
+# The agent's own screen of the account: list_transfers pages of 100, last 30 days (the tool's default
+# window). An account with more than this is treated as not fully screened, which blocks auto-clear.
+SCREEN_MAX_PAGES = 10
+SCREEN_TIMEOUT_S = 30.0
 
 
 class LLMFailure(Exception):
@@ -70,6 +78,10 @@ class Run:
     low_quality: bool = False
     error: str | None = None
     outcome: str | None = None
+    # Deterministic injection screen: hits from any tool output, and whether the agent's own full
+    # screen of the account finished (None: not run yet).
+    screen_hits: list[dict[str, Any]] = field(default_factory=list)
+    screen_complete: bool | None = None
 
 
 class State(TypedDict):
@@ -196,6 +208,8 @@ def build_graph(deps: Deps):
                 content = json.dumps({"error": {"code": "timeout", "message": "tool call hit the time limit"}})
             except Exception as e:  # noqa: BLE001 - a broken tool must not crash the investigation
                 content = json.dumps({"error": {"code": "tool_failed", "message": type(e).__name__}})
+        # Screen the full output, not just what survives truncation.
+        run.screen_hits += [dict(h, source=call["name"]) for h in screen_tool_output(content)]
         shown = truncate_tool_output(content, s.agent_tool_output_max_chars)
         # Citations are checked against what the model was actually shown, not the full output.
         collect_from_tool_output(shown, run.seen_ids, run.as_ofs)
@@ -255,14 +269,63 @@ def build_graph(deps: Deps):
                                 run.low_quality, as_of)
         return {"run": run, "next": "route"}
 
+    async def _tool_json(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        tool = tools_by_name.get(name)
+        if tool is None:
+            raise LookupError(f"no {name} tool")
+        data = json.loads(_text(await tool.ainvoke(args)))
+        if not isinstance(data, dict) or "error" in data:
+            raise LookupError(f"{name} failed: {str(data)[:200]}")
+        return data
+
+    async def _screen_account(run: Run) -> None:
+        """The agent's own injection screen of the account, independent of what the model chose to read:
+        its owner name and every memo on its transfers in the last 30 days. Sets run.screen_complete."""
+        account = str(run.account_id)
+
+        async def fetch_and_screen() -> bool:
+            hits: list[dict[str, Any]] = []
+            owner = (await _tool_json("get_account", {"account_id": account})).get("owner_name") or {}
+            owner_name = owner.get("untrusted_text") or ""
+            if signals := screen_text(owner_name):
+                hits.append({"text": owner_name[:200], "signals": signals, "source": "screen:get_account"})
+            cursor = None
+            for _ in range(SCREEN_MAX_PAGES):
+                args: dict[str, Any] = {"account_id": account, "limit": 100}
+                if cursor:
+                    args["cursor"] = cursor
+                page = await _tool_json("list_transfers", args)
+                hits += [dict(h, source="screen:list_transfers") for h in screen_tool_output(json.dumps(page))]
+                cursor = page.get("next_cursor")
+                if not cursor:
+                    run.screen_hits += hits
+                    return True
+            run.screen_hits += hits
+            return False  # more pages than we screen: not fully checked
+
+        try:
+            run.screen_complete = await asyncio.wait_for(fetch_and_screen(), SCREEN_TIMEOUT_S)
+        except Exception as e:  # noqa: BLE001 - any failure means "not screened", which blocks auto-clear
+            run.screen_complete = False
+            run.trace.append({"type": "injection_screen_error", "error": f"{type(e).__name__}: {str(e)[:300]}"})
+        run.trace.append({"type": "injection_screen", "complete": run.screen_complete, "hits": run.screen_hits})
+        if run.screen_hits:
+            run.flags.append("injection_screen_hit")
+        if not run.screen_complete:
+            run.flags.append("injection_screen_incomplete")
+
     async def route(state: State) -> State:
         run = state["run"]
         d = run.draft
+        if run.account_id is not None:
+            await _screen_account(run)
         incomplete = INCOMPLETE_FLAGS & set(run.flags)
         auto_clear = (
             run.error is None and d is not None and not run.low_quality and not incomplete
             and d.verdict == "CLEAR" and d.risk_score < s.agent_auto_clear_max_risk
             and d.confidence >= s.agent_auto_clear_min_confidence and not d.injection_detected
+            # Model-independent: the screen must have finished and found nothing.
+            and run.screen_complete is True and not run.screen_hits
         )
         if run.error:
             run.flags.append("agent_failed")
